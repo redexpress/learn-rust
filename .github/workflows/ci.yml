@@ -50,16 +50,19 @@ jobs:
             target: x86_64-unknown-linux-gnu
             ext: tar.gz
             archive: coreutils-ubuntu-x86_64.tar.gz
+            gnuutils_archive: gnuutils-ubuntu-x86_64.tar.gz
             main_artifact: lrust-ubuntu-x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             ext: tar.gz
             archive: coreutils-windows-x86_64.tar.gz
+            gnuutils_archive: gnuutils-windows-x86_64.tar.gz
             main_artifact: lrust-windows-x86_64.exe
           - os: macos-latest
             target: aarch64-apple-darwin
             ext: tar.gz
             archive: coreutils-macos-aarch64.tar.gz
+            gnuutils_archive: gnuutils-macos-aarch64.tar.gz
             main_artifact: lrust-macos-aarch64
     steps:
       - uses: actions/checkout@v4
@@ -93,22 +96,34 @@ jobs:
         run: |
           mkdir -p coreutils-staging
           release_dir="target/${{ matrix.target }}/release"
-          for path in "$release_dir"/*; do
-            [ -f "$path" ] || continue
-            [ -x "$path" ] || continue
-            name="$(basename "$path")"
-            base="${name%.exe}"
-            [ "$base" = "lrust" ] && continue
-            cp "$path" "coreutils-staging/$name"
-            chmod +x "coreutils-staging/$name"
+          exe_suffix=""
+          [ "${{ matrix.os }}" = "windows-latest" ] && exe_suffix=".exe"
+          for name in echo pwd true false cat; do
+            src="$release_dir/$name$exe_suffix"
+            [ -f "$src" ] || continue
+            cp "$src" "coreutils-staging/$name$exe_suffix"
+            chmod +x "coreutils-staging/$name$exe_suffix"
           done
-          if [ "${{ matrix.ext }}" = "zip" ]; then
-            (cd coreutils-staging && tar -a -cf "../${{ matrix.archive }}" .)
-          else
-            tar -C coreutils-staging -czf "${{ matrix.archive }}" .
-          fi
+          tar -C coreutils-staging -czf "${{ matrix.archive }}" .
           mkdir -p release-artifacts
           mv "${{ matrix.archive }}" "release-artifacts/${{ matrix.archive }}"
+
+      - name: Stage gnuutils
+        shell: bash
+        run: |
+          mkdir -p gnuutils-staging
+          release_dir="target/${{ matrix.target }}/release"
+          exe_suffix=""
+          [ "${{ matrix.os }}" = "windows-latest" ] && exe_suffix=".exe"
+          for name in watch tree; do
+            src="$release_dir/$name$exe_suffix"
+            [ -f "$src" ] || continue
+            cp "$src" "gnuutils-staging/$name$exe_suffix"
+            chmod +x "gnuutils-staging/$name$exe_suffix"
+          done
+          tar -C gnuutils-staging -czf "${{ matrix.gnuutils_archive }}" .
+          mkdir -p release-artifacts
+          mv "${{ matrix.gnuutils_archive }}" "release-artifacts/${{ matrix.gnuutils_archive }}"
 
       - name: Upload main artifact
         uses: actions/upload-artifact@v4
@@ -121,6 +136,12 @@ jobs:
         with:
           name: ${{ matrix.archive }}
           path: release-artifacts/${{ matrix.archive }}
+
+      - name: Upload gnuutils artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.gnuutils_archive }}
+          path: release-artifacts/${{ matrix.gnuutils_archive }}
 
   test:
     name: test (cram)
@@ -173,4 +194,7 @@ jobs:
             release-artifacts/coreutils-ubuntu-x86_64.tar.gz/coreutils-ubuntu-x86_64.tar.gz
             release-artifacts/coreutils-windows-x86_64.tar.gz/coreutils-windows-x86_64.tar.gz
             release-artifacts/coreutils-macos-aarch64.tar.gz/coreutils-macos-aarch64.tar.gz
+            release-artifacts/gnuutils-ubuntu-x86_64.tar.gz/gnuutils-ubuntu-x86_64.tar.gz
+            release-artifacts/gnuutils-windows-x86_64.tar.gz/gnuutils-windows-x86_64.tar.gz
+            release-artifacts/gnuutils-macos-aarch64.tar.gz/gnuutils-macos-aarch64.tar.gz
           generate_release_notes: true

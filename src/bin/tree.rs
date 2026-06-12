@@ -1,10 +1,10 @@
 use std::env;
 
-use lrust::gnuutils::watch;
+use lrust::gnuutils::tree;
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
-    let code = watch::run(&args);
+    let code = tree::run(&args);
     if code != 0 {
         std::process::exit(code);
     }

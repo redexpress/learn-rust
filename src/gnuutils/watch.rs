@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn run(args: &[String]) -> i32 {
     let mut interval: f64 = 2.0;
