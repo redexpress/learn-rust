@@ -53,8 +53,8 @@ jobs:
             main_artifact: lrust-ubuntu-x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            ext: zip
-            archive: coreutils-windows-x86_64.zip
+            ext: tar.gz
+            archive: coreutils-windows-x86_64.tar.gz
             main_artifact: lrust-windows-x86_64.exe
           - os: macos-latest
             target: aarch64-apple-darwin
@@ -141,6 +141,6 @@ jobs:
             release-artifacts/lrust-windows-x86_64.exe/lrust-windows-x86_64.exe
             release-artifacts/lrust-macos-aarch64/lrust-macos-aarch64
             release-artifacts/coreutils-ubuntu-x86_64.tar.gz/coreutils-ubuntu-x86_64.tar.gz
-            release-artifacts/coreutils-windows-x86_64.zip/coreutils-windows-x86_64.zip
+            release-artifacts/coreutils-windows-x86_64.tar.gz/coreutils-windows-x86_64.tar.gz
             release-artifacts/coreutils-macos-aarch64.tar.gz/coreutils-macos-aarch64.tar.gz
           generate_release_notes: true
