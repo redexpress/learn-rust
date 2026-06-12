@@ -2,6 +2,16 @@ use std::io::{self, Write};
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(unix)]
+fn default_shell() -> String {
+    std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
+}
+
+#[cfg(windows)]
+fn default_shell() -> String {
+    "powershell".to_string()
+}
+
 pub fn run(args: &[String]) -> i32 {
     let mut interval: f64 = 2.0;
     let mut no_title = false;
@@ -67,34 +77,74 @@ pub fn run(args: &[String]) -> i32 {
     }
 
     let interval_dur = Duration::from_secs_f64(interval);
-    let mut prev_output: Option<Vec<u8>> = None;
+    let mut prev_lines: Option<Vec<Vec<u8>>> = None;
+    let mut prev_height: usize = 0;
+    let mut first = true;
+    let mut changed = false;
 
     loop {
-        // 清屏 + 光标归零
-        print!("\x1B[2J\x1B[H");
-        let _ = io::stdout().flush();
-
-        if !no_title {
-            print_title(&command_args, interval);
-        }
-
         let (cleaned, status) = run_command(&command_args, color);
+        let cur_lines: Vec<Vec<u8>> = cleaned.split(|&b| b == b'\n').map(|s| s.to_vec()).collect();
+        let cur_height = cur_lines.len();
 
-        if differences {
-            if let Some(prev) = prev_output.as_deref() {
-                print_diff_lines(&cleaned, prev);
-            } else {
-                let _ = io::stdout().write_all(&cleaned);
+        if first {
+            let mut out = io::stdout();
+            let _ = write!(out, "\x1B[2J\x1B[H");
+            if !no_title {
+                print_title(&command_args, interval);
             }
+            if differences {
+                print_diff_lines(&cur_lines, &[]);
+            } else {
+                for line in &cur_lines {
+                    let _ = out.write_all(line);
+                    let _ = out.write_all(b"\n");
+                }
+            }
+            let _ = out.flush();
+            prev_lines = Some(cur_lines);
+            prev_height = cur_height;
+            first = false;
         } else {
-            let _ = io::stdout().write_all(&cleaned);
-        }
-        prev_output = Some(cleaned);
+            let prev = prev_lines.as_deref().unwrap_or(&[]);
+            changed = cur_lines != *prev;
 
-        let _ = io::stdout().flush();
+            if changed {
+                let mut out = io::stdout();
+                if !no_title {
+                    let _ = write!(out, "\x1B[H");
+                    print_title(&command_args, interval);
+                } else {
+                    let _ = write!(out, "\x1B[H");
+                }
+                let title_offset = if no_title { 0 } else { 2 };
+                for i in 0..cur_height {
+                    let new_line = cur_lines.get(i).map(|v| v.as_slice()).unwrap_or(b"");
+                    let old_line = prev.get(i).map(|v| v.as_slice()).unwrap_or(b"");
+                    if new_line == old_line {
+                        continue;
+                    }
+                    let _ = write!(out, "\x1B[{};1H\x1B[K", i + 1 + title_offset);
+                    if differences {
+                        let _ = out.write_all(b"\x1B[33m");
+                        let _ = out.write_all(new_line);
+                        let _ = out.write_all(b"\x1B[0m");
+                    } else {
+                        let _ = out.write_all(new_line);
+                    }
+                }
+                for i in cur_height..prev_height {
+                    let _ = write!(out, "\x1B[{};1H\x1B[K", i + 1 + title_offset);
+                }
+                let _ = write!(out, "\x1B[{};1H", cur_height + title_offset + 1);
+                let _ = out.flush();
+            }
+            prev_lines = Some(cur_lines);
+            prev_height = cur_height;
+        }
 
         if status != 0 {
-            eprintln!("\n[exit {status}]");
+            eprintln!("[exit {status}]");
             if beep {
                 eprint!("\x07");
             }
@@ -103,10 +153,8 @@ pub fn run(args: &[String]) -> i32 {
             }
         }
 
-        if chgexit {
-            // 第一轮之后每次循环都做 diff；变化则返回 0
-            // 简单做法：上一轮已比对，本轮内容与上轮不等 → 退出
-            // 由 print_diff_lines 标记的 prev_output 触发
+        if chgexit && changed && !first {
+            return 0;
         }
 
         std::thread::sleep(interval_dur);
@@ -119,8 +167,8 @@ fn print_title(cmd: &[String], interval: f64) {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let cmdline = shell_join(cmd);
-    println!("Every {interval}s: {cmdline}    {now}");
-    println!();
+    let _ = writeln!(io::stdout(), "Every {interval}s: {cmdline}    {now}");
+    let _ = writeln!(io::stdout());
 }
 
 fn shell_join(args: &[String]) -> String {
@@ -141,10 +189,16 @@ fn shell_join(args: &[String]) -> String {
 }
 
 fn run_command(args: &[String], color: bool) -> (Vec<u8>, i32) {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-    let mut cmd = Command::new(&shell);
-    cmd.arg("-c")
-        .arg(shell_join(args))
+    let mut cmd = Command::new(default_shell());
+    #[cfg(windows)]
+    {
+        cmd.arg("-NoLogo").arg("-NoProfile").arg("-Command");
+    }
+    #[cfg(unix)]
+    {
+        cmd.arg("-c");
+    }
+    cmd.arg(shell_join(args))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -186,19 +240,18 @@ fn strip_ansi(bytes: &[u8], strip: bool) -> Vec<u8> {
     out
 }
 
-fn print_diff_lines(current: &[u8], prev: &[u8]) {
-    let cur_lines: Vec<&[u8]> = current.split(|&b| b == b'\n').collect();
-    let prev_lines: Vec<&[u8]> = prev.split(|&b| b == b'\n').collect();
-    for (i, line) in cur_lines.iter().enumerate() {
-        let changed = prev_lines.get(i).map(|p| *p != *line).unwrap_or(true);
+fn print_diff_lines(current: &[Vec<u8>], prev: &[Vec<u8>]) {
+    let mut out = io::stdout();
+    for (i, line) in current.iter().enumerate() {
+        let changed = prev.get(i).map(|p| p.as_slice() != line.as_slice()).unwrap_or(true);
         if changed {
-            let _ = io::stdout().write_all(b"\x1B[33m");
+            let _ = out.write_all(b"\x1B[33m");
+            let _ = out.write_all(line);
+            let _ = out.write_all(b"\x1B[0m");
+        } else {
+            let _ = out.write_all(line);
         }
-        let _ = io::stdout().write_all(line);
-        if changed {
-            let _ = io::stdout().write_all(b"\x1B[0m");
-        }
-        let _ = io::stdout().write_all(b"\n");
+        let _ = out.write_all(b"\n");
     }
 }
 
