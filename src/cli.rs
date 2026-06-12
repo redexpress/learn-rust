@@ -11,7 +11,7 @@ pub(crate) enum Cli {
         #[command(subcommand)]
         cmd: SqlxCmd,
     },
-    #[cfg(unix)]
+    #[cfg(all(unix, feature = "rocksdb"))]
     Rockdb {
         #[command(subcommand)]
         cmd: RockdbCmd,
@@ -28,7 +28,7 @@ pub(crate) enum SqlxCmd {
     Demo,
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, feature = "rocksdb"))]
 #[derive(Subcommand)]
 pub(crate) enum RockdbCmd {
     Demo,

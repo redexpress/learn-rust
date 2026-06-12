@@ -6,7 +6,7 @@ use std::error::Error;
 use clap::Parser;
 
 use crate::cli::{Cli, SqliteCmd, SqlxCmd};
-#[cfg(unix)]
+#[cfg(all(unix, feature = "rocksdb"))]
 use crate::cli::RockdbCmd;
 
 #[tokio::main]
@@ -20,7 +20,7 @@ async fn main() {
         Cli::Sqlx { cmd } => match cmd {
             SqlxCmd::Demo => database::sqlx::run(cmd).await.map_err(|e| e.into()),
         },
-        #[cfg(unix)]
+        #[cfg(all(unix, feature = "rocksdb"))]
         Cli::Rockdb { cmd } => match cmd {
             RockdbCmd::Demo => database::rockdb::run(cmd).map_err(|e| e.into()),
         },

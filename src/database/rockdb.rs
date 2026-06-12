@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(all(unix, feature = "rocksdb"))]
 
 use std::error::Error;
 
