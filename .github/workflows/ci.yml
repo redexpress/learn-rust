@@ -103,7 +103,7 @@ jobs:
             chmod +x "coreutils-staging/$name"
           done
           if [ "${{ matrix.ext }}" = "zip" ]; then
-            (cd coreutils-staging && zip -r "${{ matrix.archive }}" .)
+            (cd coreutils-staging && tar -a -cf "../${{ matrix.archive }}" .)
           else
             tar -C coreutils-staging -czf "${{ matrix.archive }}" .
           fi
