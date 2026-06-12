@@ -11,4 +11,4 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-r
 chrono = { version = "0.4", features = ["serde"] }
 
 [target.'cfg(unix)'.dependencies]
-rust-rocksdb = { version = "0.22", default-features = false }
+rocksdb = { version = "0.22", default-features = false, package = "rust-rocksdb" }
