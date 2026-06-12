@@ -1,0 +1,14 @@
+[package]
+name = "lrust"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "chrono", "macros"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[target.'cfg(unix)'.dependencies]
+rust-rocksdb = { version = "0.22", default-features = false }
